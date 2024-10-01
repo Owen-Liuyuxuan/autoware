@@ -1,0 +1,5 @@
+ros2_launch_update_file1_path: /opt/ros/humble/lib/python3.10/site-packages/launch/actions/include_launch_description.py
+ros2_launch_update_file2_path: /opt/ros/humble/lib/python3.10/site-packages/launch/launch_description.py
+ros2_launch_update_function1_name: execute
+ros2_launch_update_function2_name: get_launch_arguments_with_include_launch_description_actions
+ros2_launch_update_backup: true

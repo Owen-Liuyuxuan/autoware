@@ -1,0 +1,86 @@
+- name: Ensure required packages are installed
+  become: true
+  ansible.builtin.apt:
+    name:
+      - python3-pip
+      - python3-venv
+    state: present
+
+- name: Install required Python packages
+  ansible.builtin.pip:
+    name:
+      - astroid
+      - astor
+  become: true
+
+- name: Check if files exist
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: ros2_launch_update_file_stats
+  loop:
+    - "{{ ros2_launch_update_file1_path }}"
+    - "{{ ros2_launch_update_file2_path }}"
+
+- name: Fail if files don't exist
+  ansible.builtin.fail:
+    msg: Required file {{ item.item }} does not exist
+  when: not item.stat.exists
+  loop: "{{ ros2_launch_update_file_stats.results }}"
+
+- name: Backup original files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ item }}.bak"
+    remote_src: true
+    mode: 0755
+  loop:
+    - "{{ ros2_launch_update_file1_path }}"
+    - "{{ ros2_launch_update_file2_path }}"
+  when: ros2_launch_update_backup | bool
+  become: true
+
+- name: Update function in file1
+  ansible.builtin.script: update_function.py
+  args:
+    executable: /usr/bin/python3
+  environment:
+    FILE_PATH: "{{ ros2_launch_update_file1_path }}"
+    FUNCTION_NAME: "{{ ros2_launch_update_function1_name }}"
+    NEW_FUNCTION: "{{ lookup('template', 'function1.py') | string }}"
+  become: true
+
+- name: Update function in file2
+  ansible.builtin.script: update_function.py
+  args:
+    executable: /usr/bin/python3
+  environment:
+    FILE_PATH: "{{ ros2_launch_update_file2_path }}"
+    FUNCTION_NAME: "{{ ros2_launch_update_function2_name }}"
+    NEW_FUNCTION: "{{ lookup('template', 'function2.py') | string }}"
+  become: true
+
+- name: Verify updates
+  ansible.builtin.script: verify_update.py
+  args:
+    executable: /usr/bin/python3
+  environment:
+    FILE_PATH: "{{ item.path }}"
+    FUNCTION_NAME: "{{ item.function }}"
+  register: ros2_launch_update_verification_result
+  loop:
+    - {
+        path: "{{ ros2_launch_update_file1_path }}", # yamllint disable-line
+        function: "{{ ros2_launch_update_function1_name }}", # yamllint disable-line
+      } # yamllint disable-line
+    - {
+        path: "{{ ros2_launch_update_file2_path }}", # yamllint disable-line
+        function: "{{ ros2_launch_update_function2_name }}", # yamllint disable-line
+      } # yamllint disable-line
+
+- name: Check verification results
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+      - "'Update successful' in item.stdout"
+    fail_msg: Update verification failed for {{ item.item.path }}
+  loop: "{{ ros2_launch_update_verification_result.results }}"
